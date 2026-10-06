@@ -1,0 +1,141 @@
+# crap4net
+
+The CRAP (Change Risk Anti-Pattern) metric for C#, in the spirit of Uncle Bob's
+[crap4java](https://github.com/unclebob/crap4java) and [crap4clj](https://github.com/unclebob/crap4clj).
+
+CRAP combines a method's cyclomatic complexity with its test coverage, so it finds the code
+that is both complicated and under-tested: the riskiest code to change.
+
+```
+CRAP = CC² × (1 − coverage)³ + CC
+```
+
+A fully covered method scores its complexity; an untested one scores CC² + CC. With the default
+threshold of 8, an untested method fails from CC 3 (two decision points), and a fully covered one
+once its complexity passes 8.
+
+## Install
+
+crap4net is a .NET tool and needs the .NET 10 SDK or newer.
+
+```bash
+dotnet pack src/Crap4Net -o nupkg
+dotnet tool install --global crap4net --add-source ./nupkg
+```
+
+## Usage
+
+Run it from a project, solution or repository directory:
+
+```bash
+crap4net                    # every C# file under the current directory
+crap4net --changed          # only files git status reports as modified, added or untracked
+crap4net src/Api Foo.cs     # these files, and every C# file under these directories
+```
+
+```
+CRAP Report
+===========
+Method        Class           CC    Cov%  CRAP  Location
+--------------------------------------------------------
+Refresh       AuthController  10   71.9%  12.2  Controllers/AuthController.cs:77
+<top-level>   Program         12   92.0%  12.1  Program.cs:17
+SeedAsync     AdminSeeder     10  100.0%  10.0  Services/AdminSeeder.cs:10
+Login         AuthController   4  100.0%   4.0  Controllers/AuthController.cs:50
+```
+
+The table is sorted worst first; methods without coverage data show `N/A` and go last.
+
+| Option | Meaning |
+|---|---|
+| `--threshold <n>` | Exit 2 when any CRAP score exceeds `n` (default 8). |
+| `--exclude <glob>` | Skip matching files, relative to the current directory. Repeatable. |
+| `--coverage-file <path>` | Read this Cobertura report instead of running the tests. Globs allowed; repeatable. |
+| `--coverage-command <cmd>` | Run `cmd` through the shell to produce the `--coverage-file` report(s) first. |
+| `--json` | Print the report as JSON (stdout stays pure JSON; progress goes to stderr). |
+
+Exit codes: `0` ok, `1` usage error, `2` threshold exceeded, `3` analysis failed (for example a failing test).
+
+## How it works
+
+1. **Select files.** All `.cs` files under the chosen directories, skipping `bin/`, `obj/`,
+   `TestResults/`, `node_modules/`, hidden directories, and test projects. A file named
+   explicitly on the command line is always analyzed.
+2. **Parse members.** Roslyn parses each file (no build needed) and finds every member with a
+   body: methods, constructors (`.ctor`/`.cctor`), finalizers, operators, property/indexer/event
+   accessors (`Name.get`), expression-bodied properties, and a file's top-level statements
+   (`<top-level>`).
+3. **Run the tests with coverage.** crap4net finds the test projects that reference the analyzed
+   projects, directly or through other projects, and runs `dotnet test` on each with coverage
+   switched on. It writes the results to a fresh temp directory and deletes them afterwards, so
+   a report from an earlier run can't be mistaken for this one. A failing test stops the run
+   (exit 3).
+4. **Attribute coverage.** Each member's coverage is the share of its coverable lines that ran.
+   Members are matched by file and line range, not by name, because the compiler moves `async`
+   methods, iterators and lambdas into generated classes whose names don't match the source.
+5. **Score and report.**
+
+### Complexity
+
+Every member starts at 1 and gains 1 for each:
+
+- `if`, `?:`, `?.`, `??`, `??=`
+- `&&`, `||`, and the pattern combinators `and` / `or`
+- `for`, `foreach`, `while`, `do`
+- `catch`, and a `when` filter on a catch, case or switch arm
+- each `case` label and each switch-expression arm (but not `default:` or `_ =>`)
+
+Lambdas and local functions count toward the member that contains them.
+
+### Coverage runners
+
+crap4net picks the coverage arguments from how the test project runs:
+
+| Test project | Command |
+|---|---|
+| `global.json` selects `Microsoft.Testing.Platform` (.NET 10 SDK) | `dotnet test --project … --coverage --coverage-output-format cobertura`; needs the `Microsoft.Testing.Extensions.CodeCoverage` package |
+| VSTest with `coverlet.collector` | `dotnet test … --collect "XPlat Code Coverage"` |
+| VSTest otherwise | `dotnet test … --collect "Code Coverage;Format=cobertura"` |
+
+For anything else, produce a Cobertura report yourself:
+
+```bash
+crap4net --coverage-command "./coverage.sh" --coverage-file "artifacts/coverage/*.cobertura.xml"
+```
+
+Test projects are searched for under the current directory and under the nearest directory
+above each analyzed project that holds a `.sln`/`.slnx` or is a git root.
+
+### What is never scored
+
+- Members without a body (abstract, interface, `partial`, `extern`, auto-properties).
+- Generated code: files with an `<auto-generated>` header or named `*.g.cs`, `*.g.i.cs`,
+  `*.designer.cs` or `*.generated.cs`, and members or types marked `[GeneratedCode]`.
+- Members or types marked `[ExcludeFromCodeCoverage]`, since coverage tools drop them too.
+- EF Core migrations and model snapshots (classes deriving from `Migration` or `ModelSnapshot`),
+  which are scaffolded from the model.
+
+## Limitations
+
+- Coverage is per line, not per branch. A line counts as covered if any part of it ran, so
+  `if (a) return x; else return y;` on one line looks fully covered after a single test.
+- Code in field and property initializers isn't attributed to any member.
+- Only Cobertura reports are read. Every mainstream .NET coverage tool can produce one.
+- Reports built with deterministic source paths (`/_/src/…`, from `ContinuousIntegrationBuild`)
+  won't match local files. Run crap4net on a normal local build.
+
+## CI
+
+```yaml
+- run: dotnet tool install --global crap4net --add-source ./nupkg
+- run: crap4net --threshold 8
+```
+
+Use `--changed` in pull-request checks to gate only the files being touched.
+
+## Developing
+
+```bash
+dotnet test --project tests/Crap4Net.Tests/Crap4Net.Tests.csproj
+dotnet run --project src/Crap4Net      # crap4net measuring itself; it should exit 0
+```

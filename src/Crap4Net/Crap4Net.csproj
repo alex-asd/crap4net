@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Run on whatever newer runtime the machine has, so projects on later SDKs can still use the tool. -->
+    <RollForward>Major</RollForward>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>crap4net</ToolCommandName>
+    <PackageId>crap4net</PackageId>
+    <Version>0.1.0</Version>
+    <Description>CRAP (Change Risk Anti-Pattern) metric for C#: combines cyclomatic complexity with test coverage to find complex, under-tested methods.</Description>
+    <PackageTags>crap;complexity;coverage;metrics;roslyn</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Crap4Net.Tests" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
