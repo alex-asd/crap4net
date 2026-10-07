@@ -15,6 +15,8 @@
     <Description>CRAP (Change Risk Anti-Pattern) metric for C#: combines cyclomatic complexity with test coverage to find complex, under-tested methods.</Description>
     <PackageTags>crap;complexity;coverage;metrics;roslyn</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/alex-asd/crap4net</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>

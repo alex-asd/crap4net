@@ -139,3 +139,7 @@ Use `--changed` in pull-request checks to gate only the files being touched.
 dotnet test --project tests/Crap4Net.Tests/Crap4Net.Tests.csproj
 dotnet run --project src/Crap4Net      # crap4net measuring itself; it should exit 0
 ```
+
+## License
+
+[MIT](LICENSE): free to use, copy, modify and redistribute, commercially or not, as long as the copyright notice comes along.
